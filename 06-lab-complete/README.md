@@ -29,7 +29,7 @@ python check_production_ready.py
 
 ---
 
-## Hợp đồng — script chấm dựa vào đây
+## Script chấm dựa vào những tiêu chí dưới đây
 
 Script tự khởi động agent của bạn, gọi API thật, build và chạy Docker image. Để chấm được, agent phải tuân theo các quy ước sau:
 
