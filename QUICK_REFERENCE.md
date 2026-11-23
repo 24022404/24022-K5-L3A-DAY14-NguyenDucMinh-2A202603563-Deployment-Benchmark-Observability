@@ -663,7 +663,7 @@ FROM python:3.11-alpine
 ### Lệnh benchmark
 
 ```bash
-cd 07-benchmark-observability/develop
+cd 06-lab-complete/benchmark-observability/develop
 
 # Load test: 300 request, 20 song song, kiểm tra SLO
 python load_test.py --url http://localhost:8002 --requests 300 --concurrency 20 \

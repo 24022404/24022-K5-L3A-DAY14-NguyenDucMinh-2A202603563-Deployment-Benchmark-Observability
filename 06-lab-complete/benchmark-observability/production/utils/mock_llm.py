@@ -1,5 +1,5 @@
 """
-Mock LLM cho Section 07 — Benchmark & Observability.
+Mock LLM cho Part 7 — Benchmark & Observability.
 
 Khác với mock ở các section trước, mock này được thiết kế để có thứ ĐO ĐƯỢC:
   • Latency có jitter + "tail latency" (một phần nhỏ request chậm bất thường)

@@ -66,7 +66,7 @@ Create a file `MISSION_ANSWERS.md` with your answers to all exercises:
 
 ### 2. Full Source Code - Lab 06 Complete (60 points)
 
-Your final production-ready agent with all files:
+Your final production-ready agent, built from the skeleton in `06-lab-complete/` (xem mục **Hợp đồng** trong [06-lab-complete/README.md](06-lab-complete/README.md)):
 
 ```
 your-repo/
@@ -74,10 +74,12 @@ your-repo/
 │   ├── main.py              # Main application
 │   ├── config.py            # Configuration
 │   ├── auth.py              # Authentication
-│   ├── rate_limiter.py      # Rate limiting
-│   └── cost_guard.py        # Cost protection
+│   ├── rate_limiter.py      # Rate limiting (Redis)
+│   ├── cost_guard.py        # Cost protection (Redis)
+│   └── redis_client.py      # Redis connection + health
 ├── utils/
 │   └── mock_llm.py          # Mock LLM (provided)
+├── check_production_ready.py  # Grading script (provided, do not modify)
 ├── Dockerfile               # Multi-stage build
 ├── docker-compose.yml       # Full stack
 ├── requirements.txt         # Dependencies
@@ -88,6 +90,7 @@ your-repo/
 ```
 
 **Requirements:**
+-  **`python check_production_ready.py` báo `PASS 12/12`** (chạy đầy đủ, có Docker) — dán phần "📋 Checklist Deliverable" của output vào `MISSION_ANSWERS.md`
 -  All code runs without errors
 -  Multi-stage Dockerfile (image < 500 MB)
 -  API key authentication
@@ -145,7 +148,7 @@ curl -X POST https://your-agent.railway.app/ask \
 
 ### 4. Benchmark & Observability Report — Part 7 (20 points)
 
-Copy [07-benchmark-observability/BENCHMARK_REPORT_TEMPLATE.md](07-benchmark-observability/BENCHMARK_REPORT_TEMPLATE.md) thành `BENCHMARK_REPORT.md` và điền đầy đủ, kèm các file bằng chứng:
+Copy [06-lab-complete/benchmark-observability/BENCHMARK_REPORT_TEMPLATE.md](06-lab-complete/benchmark-observability/BENCHMARK_REPORT_TEMPLATE.md) thành `BENCHMARK_REPORT.md` và điền đầy đủ, kèm các file bằng chứng:
 
 ```
 your-repo/
@@ -188,6 +191,7 @@ your-repo/
 - [ ] Public URL is accessible and working
 - [ ] Screenshots included in `screenshots/` folder
 - [ ] Repository has clear commit history
+- [ ] `python check_production_ready.py` → `PASS 12/12`
 - [ ] `BENCHMARK_REPORT.md` điền đủ, có `reports/`, `benchmark-results/` và screenshot Part 7
 
 ---
@@ -217,7 +221,7 @@ done
 # Should eventually return 429
 
 # 5. Part 7 — eval quality gate (agent v2 đang chạy ở local)
-cd 07-benchmark-observability/develop
+cd 06-lab-complete/benchmark-observability/develop
 python eval/run_eval.py --min-accuracy 1.0
 # Should print: Quality gate ... ✅ PASS
 ```

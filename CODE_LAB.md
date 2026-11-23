@@ -635,28 +635,30 @@ Script này:
 
 ###  Objective
 
-Build một production-ready AI agent từ đầu, kết hợp TẤT CẢ concepts đã học.
+Tự xây một production-ready AI agent từ **bản khung** trong `06-lab-complete/` (mọi file đã có sẵn, phần việc nằm ở các chỗ `TODO`), kết hợp TẤT CẢ concepts đã học. Bài hoàn thành khi `python check_production_ready.py` báo **PASS 12/12**.
 
 ###  Requirements
 
-**Functional:**
-- [ ] Agent trả lời câu hỏi qua REST API
-- [ ] Support conversation history
-- [ ] Streaming responses (optional)
-
-**Non-functional:**
-- [ ] Dockerized với multi-stage build
+**Bắt buộc — 12 tiêu chí được script chấm tự động:**
+- [ ] Dockerfile (multi-stage, < 500 MB)
+- [ ] docker-compose.yml (agent + redis)
+- [ ] .dockerignore
+- [ ] Health check endpoint (`GET /health`)
+- [ ] Readiness endpoint (`GET /ready`)
+- [ ] API Key authentication
+- [ ] Rate limiting
+- [ ] Cost guard
 - [ ] Config từ environment variables
-- [ ] API key authentication
-- [ ] Rate limiting (10 req/min per user)
-- [ ] Cost guard ($10/month per user)
-- [ ] Health check endpoint
-- [ ] Readiness check endpoint
+- [ ] Structured logging
 - [ ] Graceful shutdown
-- [ ] Stateless design (state trong Redis)
-- [ ] Structured JSON logging
-- [ ] Deploy lên Railway hoặc Render
-- [ ] Public URL hoạt động
+- [ ] Public URL ready (Railway / Render config)
+
+Quy ước chi tiết mà script chấm dựa vào (endpoint, header, mã lỗi, biến môi trường...) nằm ở mục **Hợp đồng** trong [06-lab-complete/README.md](06-lab-complete/README.md).
+
+**Mở rộng (không chấm tự động, khuyến khích làm thêm):**
+- [ ] Lưu conversation history trong Redis
+- [ ] Streaming responses
+- [ ] Nginx load balancer + scale 3 instance (như sơ đồ dưới)
 
 ### 🏗 Architecture
 
@@ -686,83 +688,58 @@ Build một production-ready AI agent từ đầu, kết hợp TẤT CẢ concep
 
 ###  Step-by-step
 
-#### Step 1: Project setup (5 phút)
+#### Step 1: Mở bản khung (5 phút)
 
 ```bash
-mkdir my-production-agent
-cd my-production-agent
-
-# Tạo structure
-mkdir -p app
-touch app/__init__.py
-touch app/main.py
-touch app/config.py
-touch app/auth.py
-touch app/rate_limiter.py
-touch app/cost_guard.py
-touch Dockerfile
-touch docker-compose.yml
-touch requirements.txt
-touch .env.example
-touch .dockerignore
+cd 06-lab-complete
+pip install -r requirements.txt
+python check_production_ready.py --static-only   # xem các tiêu chí đang ❌ ở đâu
 ```
 
-#### Step 2: Config management (10 phút)
+Muốn làm trong repo riêng để nộp bài: copy cả thư mục `06-lab-complete/` sang repo của bạn, giữ nguyên `check_production_ready.py`.
+
+#### Step 2: Config từ environment (5 phút)
 
 **File:** `app/config.py`
 
 ```python
-from pydantic_settings import BaseSettings
+import os
+from dataclasses import dataclass, field
 
-class Settings(BaseSettings):
-    # TODO: Define all config
-    # - PORT
-    # - REDIS_URL
-    # - AGENT_API_KEY
-    # - LOG_LEVEL
-    # - RATE_LIMIT_PER_MINUTE
-    # - MONTHLY_BUDGET_USD
-    pass
+@dataclass
+class Settings:
+    agent_api_key: str = field(default_factory=lambda: os.getenv("AGENT_API_KEY", ""))
+    redis_url: str = field(default_factory=lambda: os.getenv("REDIS_URL", "redis://localhost:6379/0"))
+    # TODO: PORT, ENVIRONMENT, RATE_LIMIT_PER_MINUTE (int), DAILY_BUDGET_USD (float)
 
 settings = Settings()
 ```
 
-#### Step 3: Main application (15 phút)
+Đồng thời liệt kê đủ các biến trong `.env.example` (không ghi secret thật).
 
-**File:** `app/main.py`
+#### Step 3: Health, readiness và log JSON (10 phút)
+
+**File:** `app/main.py`, `app/redis_client.py`
 
 ```python
-from fastapi import FastAPI, Depends, HTTPException
-from .config import settings
-from .auth import verify_api_key
-from .rate_limiter import check_rate_limit
-from .cost_guard import check_budget
-
-app = FastAPI()
-
 @app.get("/health")
 def health():
-    # TODO
-    pass
+    # TODO: luôn trả 200 khi process còn chạy (không phụ thuộc Redis)
+    ...
 
 @app.get("/ready")
 def ready():
-    # TODO: Check Redis connection
-    pass
+    # TODO: Redis không kết nối được → raise HTTPException(503)
+    ...
+```
 
-@app.post("/ask")
-def ask(
-    question: str,
-    user_id: str = Depends(verify_api_key),
-    _rate_limit: None = Depends(check_rate_limit),
-    _budget: None = Depends(check_budget)
-):
-    # TODO: 
-    # 1. Get conversation history from Redis
-    # 2. Call LLM
-    # 3. Save to Redis
-    # 4. Return response
-    pass
+Mỗi dòng log phải là 1 JSON object hợp lệ. Tự viết formatter:
+
+```python
+class JsonFormatter(logging.Formatter):
+    def format(self, record):
+        # TODO: return json.dumps({...}) gồm thời gian, level, message và các field khác
+        ...
 ```
 
 #### Step 4: Authentication (5 phút)
@@ -770,106 +747,136 @@ def ask(
 **File:** `app/auth.py`
 
 ```python
-from fastapi import Header, HTTPException
+from fastapi import HTTPException, Security
+from fastapi.security.api_key import APIKeyHeader
 
-def verify_api_key(x_api_key: str = Header(...)):
-    # TODO: Verify against settings.AGENT_API_KEY
-    # Return user_id if valid
-    # Raise HTTPException(401) if invalid
-    pass
+api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
+
+def verify_api_key(api_key: str = Security(api_key_header)) -> str:
+    # TODO: thiếu hoặc khác settings.agent_api_key → raise HTTPException(401)
+    ...
 ```
 
-#### Step 5: Rate limiting (10 phút)
+> Dùng `auto_error=False` rồi tự trả 401. Nếu khai báo header là bắt buộc (`Header(...)`), FastAPI trả **422** khi thiếu header và không đạt tiêu chí.
+
+#### Step 5: Rate limiting với Redis (10 phút)
 
 **File:** `app/rate_limiter.py`
 
 ```python
-import redis
-from fastapi import HTTPException
-
-r = redis.from_url(settings.REDIS_URL)
-
-def check_rate_limit(user_id: str):
-    # TODO: Implement sliding window
-    # Raise HTTPException(429) if exceeded
-    pass
+def check_rate_limit(key: str) -> None:
+    # TODO: sliding window 60 giây bằng Redis sorted set:
+    #   ZREMRANGEBYSCORE (xoá request cũ) → ZCARD (đếm)
+    #   → vượt RATE_LIMIT_PER_MINUTE: raise HTTPException(429, headers={"Retry-After": "60"})
+    #   → ZADD + EXPIRE
+    ...
 ```
 
-#### Step 6: Cost guard (10 phút)
+> Phải lưu trong Redis, không lưu dict trong memory: Dockerfile chạy 2 worker, và script chấm sẽ restart agent để kiểm tra state còn không.
+
+#### Step 6: Cost guard (5 phút)
 
 **File:** `app/cost_guard.py`
 
 ```python
-def check_budget(user_id: str):
-    # TODO: Check monthly spending
-    # Raise HTTPException(402) if exceeded
-    pass
+def check_budget() -> None:
+    # TODO: tổng chi phí trong Redis >= DAILY_BUDGET_USD → raise HTTPException(402)
+    ...
+
+def record_cost(input_tokens: int, output_tokens: int) -> float:
+    # TODO: tính cost theo PRICE_*_PER_1K rồi cộng vào Redis (INCRBYFLOAT)
+    ...
 ```
 
-#### Step 7: Dockerfile (5 phút)
+Nối tất cả vào `/ask`: `Depends(verify_api_key)` → `check_rate_limit(...)` → `check_budget()` → gọi LLM → `record_cost(...)`.
+
+#### Step 7: Graceful shutdown (5 phút)
+
+Khi `docker stop`, container nhận SIGTERM: agent phải xử lý xong request đang chạy rồi thoát với exit code 0. uvicorn làm sẵn việc này. Nếu bạn tự đăng ký handler SIGTERM (vd để ghi log), phải gọi lại handler cũ:
+
+```python
+_previous = signal.getsignal(signal.SIGTERM)
+
+def _on_sigterm(signum, frame):
+    logger.info(json.dumps({"event": "sigterm"}))
+    if callable(_previous):
+        _previous(signum, frame)   # không gọi lại → uvicorn không bao giờ tắt
+
+signal.signal(signal.SIGTERM, _on_sigterm)
+```
+
+#### Step 8: Dockerfile + .dockerignore (5 phút)
 
 ```dockerfile
-# TODO: Multi-stage build
-# Stage 1: Builder
-# Stage 2: Runtime
+# Stage 1: builder — cài dependencies
+FROM python:3.11-slim AS builder
+# TODO
+
+# Stage 2: runtime — chỉ copy kết quả, user non-root, HEALTHCHECK
+FROM python:3.11-slim AS runtime
+# TODO
+CMD ["sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 2"]
 ```
 
-#### Step 8: Docker Compose (5 phút)
+> Nếu cài bằng `pip install --user` ở builder rồi copy sang `/home/<user>/.local`, nhớ đặt `ENV PYTHONUSERBASE=/home/<user>/.local`. Nếu không, user non-root sẽ không tìm thấy package và container crash ngay khi chạy.
+
+#### Step 9: Docker Compose (5 phút)
 
 ```yaml
-# TODO: Define services
-# - agent (scale to 3)
-# - redis
-# - nginx (load balancer)
+services:
+  agent:
+    build: .
+    # TODO: ports, env_file (.env, required: false), REDIS_URL=redis://redis:6379/0, depends_on: redis
+  redis:
+    image: redis:7-alpine
+    # TODO: healthcheck
 ```
 
-#### Step 9: Test locally (5 phút)
+Mở rộng: thêm Nginx làm load balancer và chạy `docker compose up --scale agent=3`.
+
+#### Step 10: Test & deploy (5 phút)
 
 ```bash
-docker compose up --scale agent=3
+docker compose up --build
+curl http://localhost:8000/health
+curl http://localhost:8000/ready
+curl -X POST http://localhost:8000/ask -H "X-API-Key: <key>" \
+  -H "Content-Type: application/json" -d '{"question": "Hello"}'
 
-# Test all endpoints
-curl http://localhost/health
-curl http://localhost/ready
-curl -H "X-API-Key: secret" http://localhost/ask -X POST \
-  -H "Content-Type: application/json" \
-  -d '{"question": "Hello", "user_id": "user1"}'
-```
-
-#### Step 10: Deploy (10 phút)
-
-```bash
-# Railway
-railway init
-railway variables set REDIS_URL=...
-railway variables set AGENT_API_KEY=...
+# Điền railway.toml (hoặc render.yaml) rồi deploy
 railway up
-
-# Hoặc Render
-# Push lên GitHub → Connect Render → Deploy
 ```
 
 ###  Validation
 
-Chạy script kiểm tra:
+Chạy script kiểm tra (với project của bạn: copy `check_production_ready.py` vào thư mục gốc project, cùng cấp với `app/`):
 
 ```bash
 cd 06-lab-complete
-python check_production_ready.py
+pip install -r requirements.txt
+python check_production_ready.py                 # đầy đủ (lần đầu build image mất vài phút)
+python check_production_ready.py --skip-docker   # bỏ phần build/chạy Docker image
+python check_production_ready.py --static-only   # chỉ kiểm tra tĩnh
+python check_production_ready.py --public-url https://your-app.railway.app   # thêm kiểm tra URL đã deploy
 ```
 
-Script sẽ kiểm tra:
--  Dockerfile exists và valid
--  Multi-stage build
--  .dockerignore exists
--  Health endpoint returns 200
--  Readiness endpoint returns 200
--  Auth required (401 without key)
--  Rate limiting works (429 after limit)
--  Cost guard works (402 when exceeded)
--  Graceful shutdown (SIGTERM handled)
--  Stateless (state trong Redis, không trong memory)
--  Structured logging (JSON format)
+Script chấm theo đúng 12 tiêu chí trong "Checklist Deliverable" của `06-lab-complete/README.md`, mỗi tiêu chí kiểm tra cả file lẫn hành vi thật:
+
+| Tiêu chí | Script kiểm tra |
+|----------|-----------------|
+| Dockerfile (multi-stage, < 500 MB) | ≥ 2 lệnh FROM, base slim, user non-root, HEALTHCHECK; **build image, đo kích thước, chạy container và gọi /health** |
+| docker-compose.yml (agent + redis) | `docker compose config` hợp lệ, có service build từ Dockerfile + service Redis, `REDIS_URL` + `depends_on` |
+| .dockerignore | Có file, loại trừ `.env`, `__pycache__`, `venv` |
+| Health / Readiness | `GET /health` → 200, `GET /ready` → 200, Redis mất kết nối → `/ready` 503 |
+| API Key authentication | Thiếu hoặc sai key → 401, key đúng → 200 |
+| Rate limiting | Vượt giới hạn → 429 (script đặt `RATE_LIMIT_PER_MINUTE=5`); restart agent vẫn bị 429 → state nằm trong Redis |
+| Cost guard | Budget gần bằng 0 → 402 |
+| Config từ environment variables | `config.py` đọc env, `.env.example` đủ biến, `.env` trong `.gitignore`, không hard-code secret, agent dùng giá trị env khi chạy |
+| Structured logging | Mọi dòng log của app là JSON hợp lệ |
+| Graceful shutdown | SIGTERM lúc đang có request → request vẫn 200; `docker stop` → exit code 0 trong < 10s |
+| Public URL ready | `railway.toml` / `render.yaml` hợp lệ (healthcheck `/health`, secret không ghi thẳng), app nghe theo biến `PORT` |
+
+> Agent được chạy bằng `uvicorn app.main:app --workers 2` (giống CMD trong Dockerfile) với API key ngẫu nhiên. Bài test stateless cần Redis: script dùng `REDIS_URL` nếu có, không thì tự bật `redis-server` hoặc container `redis:7-alpine`. Không có Docker thì các mục build/chạy image bị đánh dấu ⚠️ (bỏ qua).
 
 ###  Grading Rubric
 
@@ -898,12 +905,12 @@ Script sẽ kiểm tra:
 4. **Traces** — OpenTelemetry ghi từng bước của request, xem trong Jaeger
 5. **Alerts** — Prometheus báo động khi vi phạm SLO kéo dài
 
-Lý thuyết chi tiết (percentile, SLO, cardinality...): [07-benchmark-observability/README.md](07-benchmark-observability/README.md)
+Lý thuyết chi tiết (percentile, SLO, cardinality...): [06-lab-complete/benchmark-observability/README.md](06-lab-complete/benchmark-observability/README.md)
 
 ###  Exercise 7.1: Đọc metrics của agent (10 phút)
 
 ```bash
-cd 07-benchmark-observability/develop
+cd 06-lab-complete/benchmark-observability/develop
 pip install -r requirements.txt
 
 # Terminal 1: agent v1 (không retrieval)
@@ -989,7 +996,7 @@ jobs:
       - uses: actions/setup-python@v5
         with: { python-version: "3.11" }
       - name: Run agent + eval
-        working-directory: 07-benchmark-observability/develop
+        working-directory: 06-lab-complete/benchmark-observability/develop
         run: |
           pip install -r requirements.txt
           AGENT_VERSION=v2 MOCK_ERROR_RATE=0 python app.py &
@@ -1044,13 +1051,13 @@ docker run --rm -v "$PWD/prometheus:/p" --entrypoint promtool \
   prom/prometheus:v3.16.0 test rules /p/alert_rules_test.yml
 ```
 
-Làm **ít nhất 2** thí nghiệm trong bảng ở mục 2.6 của [README section 07](07-benchmark-observability/README.md) (ví dụ `MOCK_ERROR_RATE=0.2`, `LLM_MODEL=mock-llm-large`). Ghi lại alert nào firing và mất bao lâu.
+Làm **ít nhất 2** thí nghiệm trong bảng ở mục 2.6 của [README Benchmark & Observability](06-lab-complete/benchmark-observability/README.md) (ví dụ `MOCK_ERROR_RATE=0.2`, `LLM_MODEL=mock-llm-large`). Ghi lại alert nào firing và mất bao lâu.
 
 **Câu hỏi:** Đổi `AGENT_VERSION=v1` thì không alert nào firing dù chất lượng giảm mạnh. Vậy loại sự cố này được phát hiện bằng cách nào?
 
 ###  Exercise 7.7: Benchmark report
 
-Điền [07-benchmark-observability/BENCHMARK_REPORT_TEMPLATE.md](07-benchmark-observability/BENCHMARK_REPORT_TEMPLATE.md), lưu thành `BENCHMARK_REPORT.md` kèm report JSON, CSV của Locust và screenshot.
+Điền [06-lab-complete/benchmark-observability/BENCHMARK_REPORT_TEMPLATE.md](06-lab-complete/benchmark-observability/BENCHMARK_REPORT_TEMPLATE.md), lưu thành `BENCHMARK_REPORT.md` kèm report JSON, CSV của Locust và screenshot.
 
 ```bash
 docker compose down   # dọn dẹp khi xong

@@ -188,7 +188,7 @@ cat README.md
 Measure how fast and how accurate your agent is, then turn on dashboards, tracing and alerts (Part 7).
 
 ```bash
-cd 07-benchmark-observability/production
+cd 06-lab-complete/benchmark-observability/production
 docker compose up --build -d
 # Grafana: http://localhost:3000  ·  Jaeger: http://localhost:16686  ·  Locust: http://localhost:8089
 ```

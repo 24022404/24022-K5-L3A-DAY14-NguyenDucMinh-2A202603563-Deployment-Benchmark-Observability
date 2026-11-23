@@ -1,4 +1,4 @@
-# 07 — Benchmark & Observability
+# Part 7 — Benchmark & Observability
 
 Deploy lên cloud xong mới là **bắt đầu**. Từ lúc có người dùng thật, bạn phải trả lời được 3 câu hỏi:
 
@@ -7,6 +7,8 @@ Deploy lên cloud xong mới là **bắt đầu**. Từ lúc có người dùng 
 3. **Ngay lúc này agent có đang khoẻ không? Nếu chậm thì chậm ở đâu?** → *Observability* (metrics, logs, traces)
 
 Section này dạy cả ba, dùng mock LLM nên **chạy hoàn toàn offline, không cần API key**.
+
+> Thư mục này nằm trong `06-lab-complete/` vì Part 7 nối tiếp Final Project: sau khi build xong agent production, bạn đo và giám sát nó. Agent ở đây là bản rút gọn của agent Part 6 (giữ API key, bỏ rate limit và cost guard để load test không bị chặn 429), có thêm metrics và tracing. Code chạy độc lập, không phụ thuộc file nào khác trong `06-lab-complete/`.
 
 ---
 
@@ -91,7 +93,7 @@ Ba trụ cột liên kết với nhau: dashboard báo p95 tăng → mở Jaeger 
 ## Cấu trúc
 
 ```
-07-benchmark-observability/
+06-lab-complete/benchmark-observability/
 ├── README.md
 ├── BENCHMARK_REPORT_TEMPLATE.md     # Mẫu báo cáo benchmark (nộp bài)
 ├── develop/                         # Bước 1: chạy local, không cần Docker

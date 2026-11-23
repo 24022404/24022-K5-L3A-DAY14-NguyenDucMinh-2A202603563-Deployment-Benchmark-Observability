@@ -34,11 +34,10 @@ K5-L3-Day14-Deployment-Agent-Benchmark-Observability/
 │   └── production/                   #   Stateless + Redis + Nginx LB
 │
 ├── 06-lab-complete/                # Lab 14: Production-ready agent
-│   └── (full project kết hợp tất cả)
-│
-├── 07-benchmark-observability/     # Section 7: Benchmark & Observability
-│   ├── develop/                      #   Metrics + load test + eval (chạy local)
-│   └── production/                   #   Prometheus + Grafana + Jaeger + Locust
+│   ├── (bản khung TODO — sinh viên tự làm, chấm bằng check_production_ready.py)
+│   └── benchmark-observability/      #   Part 7: Benchmark & Observability
+│       ├── develop/                  #     Metrics + load test + eval (chạy local)
+│       └── production/               #     Prometheus + Grafana + Jaeger + Locust
 │
 ├── Dockerfile_examples/            # Ví dụ Dockerfile (Go) + thứ tự layers
 │   ├── Dockerfile                    #   Single-stage, COPY . . (chưa tối ưu)
@@ -64,8 +63,8 @@ K5-L3-Day14-Deployment-Agent-Benchmark-Observability/
 | 1 | Đọc [CODE_LAB.md](CODE_LAB.md) để hiểu chi tiết |
 | 2 | Chạy ví dụ **basic** trước — hiểu concept |
 | 3 | So sánh với ví dụ **advanced** — thấy sự khác biệt |
-| 4 | Tự làm Lab 06 từ đầu trước khi xem solution |
-| 4b | Benchmark và giám sát agent với section 07, điền Benchmark Report |
+| 4 | Tự làm Lab 06 từ bản khung, chạy `python check_production_ready.py` tới khi `PASS 12/12` |
+| 4b | Benchmark và giám sát agent với `06-lab-complete/benchmark-observability`, điền Benchmark Report |
 | 5 | Tham khảo [QUICK_REFERENCE.md](QUICK_REFERENCE.md) khi cần |
 | 6 | Xem [TROUBLESHOOTING.md](TROUBLESHOOTING.md) khi gặp lỗi |
 
@@ -91,8 +90,8 @@ Mỗi folder có `requirements.txt` riêng. Không cần API key thật — các
 | 3 | `03-cloud-deployment` | Railway, Render, Cloud Run |
 | 4 | `04-api-gateway` | Auth, rate limiting, cost protection |
 | 5 | `05-scaling-reliability` | Health check, stateless, rolling deploy |
-| 6 | `06-lab-complete` | **Full production agent** |
-| 7 | `07-benchmark-observability` | Load test, eval, Prometheus, Grafana, OpenTelemetry, alerts |
+| 6 | `06-lab-complete` | **Final project: tự xây production agent từ bản khung TODO** |
+| 7 | `06-lab-complete/benchmark-observability` | Load test, eval, Prometheus, Grafana, OpenTelemetry, alerts |
 
 ---
 

@@ -191,6 +191,10 @@ docker compose up --scale agent=3
 
 ## Part 6: Final Project (60 points)
 
+> **Lời giải tham khảo** không nằm trong repo sinh viên (repo chỉ có bản khung TODO trong `06-lab-complete/`). Lời giải được lưu riêng cho giảng viên — chạy `python check_production_ready.py` trong thư mục lời giải phải ra `PASS 12/12`.
+>
+> **Bước chấm đầu tiên:** chạy `python check_production_ready.py` trong repo sinh viên trên máy có Docker. Script kiểm tra đủ 12 tiêu chí của Checklist Deliverable (tĩnh + chạy agent thật + build/chạy image). Bài chưa `PASS 12/12` thì các mục ❌ tương ứng bị trừ điểm theo bảng bên dưới; mục ⚠️ (không kiểm tra được) cũng tính là chưa đạt.
+
 ### Functional Requirements (20 points)
 
 | Criteria | Points | Description |
@@ -390,7 +394,7 @@ Chấm chủ yếu qua `BENCHMARK_REPORT.md` + report JSON, CSV và screenshot s
 **Verification:**
 
 ```bash
-cd student-repo/07-benchmark-observability
+cd student-repo/06-lab-complete/benchmark-observability
 
 # Eval phải đạt 100% sau khi sinh viên sửa knowledge base
 cd develop && pip install -r requirements.txt
