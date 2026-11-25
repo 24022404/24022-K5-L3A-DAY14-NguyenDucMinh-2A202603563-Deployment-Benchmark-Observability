@@ -206,7 +206,38 @@ Vì sao cần cả hai: rate limit bảo vệ tốc độ (chống spam), cost g
 
 ## Part 5: Scaling & Reliability
 
-(chưa làm)
+### Exercise 5.1-5.3: Đọc `05-scaling-reliability/production/app.py`
+
+- **Health check (5.1):** `GET /health` là liveness: process còn sống thì trả 200, kèm `instance_id`, `uptime_seconds` và trạng thái Redis (`ok` hoặc `degraded`). `GET /ready` là readiness: ping Redis, nếu Redis lỗi thì trả 503, tức instance chưa nên nhận traffic. Khác nhau: `/health` trả lời "process còn chạy không" (platform dùng để restart); `/ready` trả lời "nhận request được chưa" (load balancer dùng để route).
+- **Graceful shutdown (5.2):** app dùng `lifespan` của FastAPI; khi uvicorn nhận SIGTERM thì chạy phần sau `yield` để ghi log `Instance ... shutting down`, request đang chạy được uvicorn xử lý xong trước khi dừng. (Mình đã thấy log shutdown tương tự ở Part 1 khi gửi SIGTERM; chưa kiểm riêng trường hợp này.)
+- **Stateless (5.3):** state không nằm trong RAM của process. Session và lịch sử hội thoại lưu trong Redis với khóa `session:<id>`, TTL 1 giờ, giữ tối đa 20 message. Bản `develop` lưu trong bộ nhớ nên mỗi instance một bản riêng, scale ra nhiều instance sẽ mất ngữ cảnh.
+
+### Exercise 5.4: Stack nhiều instance
+
+Chạy: `docker compose -p k5-day14-scaling up -d --build --scale agent=3` trong `05-scaling-reliability/production/`. Nginx nghe cổng 8080 và chia tải (round-robin) tới 3 instance agent; cả 3 dùng chung một Redis.
+
+**Chỉnh sửa vì môi trường (giống Part 2):**
+- Mạng chặn `apt-get`, nên mình xóa 2 dòng `RUN apt-get install gcc libpq-dev` trong `Dockerfile` (requirements chỉ có `fastapi`, `uvicorn`, `redis`, không cần biên dịch).
+- Docker Desktop không mount được `nginx.conf` từ Debian-Lab, nên thêm `Dockerfile.nginx` (`FROM nginx:alpine` + `COPY nginx.conf ...`) và đổi service nginx sang `build`, bỏ dòng mount.
+- Lần build đầu `pip` bị timeout do mạng, build lại thì qua.
+
+### Exercise 5.5: Test stateless (`python3 test_stateless.py`, output thật)
+
+```
+Session ID: 3d2c6780-759b-45a8-8e19-2dee978288a1
+Request 1: [instance-bfb655]  Q: What is Docker?
+Request 2: [instance-cb55d2]  Q: Why do we need containers?
+Request 3: [instance-e7e175]  Q: What is Kubernetes?
+Request 4: [instance-bfb655]  Q: How does load balancing work?
+Request 5: [instance-cb55d2]  Q: What is Redis used for?
+Total requests: 5
+Instances used: {'instance-e7e175', 'instance-cb55d2', 'instance-bfb655'}
+All requests served despite different instances!
+--- Conversation History --- Total messages: 10
+Session history preserved across all instances via Redis!
+```
+
+Giải thích: 5 request cùng một `session_id` được Nginx chia cho 3 instance khác nhau (bfb655, cb55d2, e7e175), nhưng lịch sử cuối cùng có đủ 10 message (5 câu hỏi và 5 câu trả lời). Vì state nằm trong Redis chứ không nằm trong RAM, instance nào cũng đọc và ghi cùng một session. Nếu lưu trong RAM thì request 2 sang instance khác sẽ không thấy request 1. Mình chưa tắt thử một instance giữa chừng.
 
 ## Output `check_production_ready.py`
 
