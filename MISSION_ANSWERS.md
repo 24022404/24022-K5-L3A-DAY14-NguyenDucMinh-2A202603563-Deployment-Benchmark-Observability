@@ -76,7 +76,68 @@ Ghi chú trung thực: trong lần chạy này, các dòng log JSON do code củ
 
 ## Part 2: Docker
 
-(chưa làm)
+### Exercise 2.1: Đọc `02-docker/develop/Dockerfile`
+
+1. **Base image:** `python:3.11` (bản đầy đủ, khoảng 1 GB).
+2. **Working directory:** `/app`.
+3. **Vì sao `COPY requirements.txt` trước `COPY app.py`:** Docker cache theo từng layer. Requirements ít đổi, nên layer `pip install` được dùng lại; chỉ khi sửa code thì mới copy lại phần code, không phải cài lại thư viện.
+4. **CMD và ENTRYPOINT:** `CMD ["python", "app.py"]` là lệnh mặc định, có thể bị ghi đè khi `docker run <image> <lệnh khác>`. ENTRYPOINT là lệnh cố định của container, tham số truyền vào được nối thêm sau nó.
+
+### Exercise 2.2-2.3: Build và so sánh image (đo thật bằng `docker images`)
+
+```
+$ docker images | grep my-agent
+my-agent:advanced      0249a31b522b        240MB         57.7MB
+my-agent:develop       46922c8581f8       1.67GB          427MB
+```
+
+| Image | Kích thước | Ghi chú |
+| --- | --- | --- |
+| `my-agent:develop` (single-stage, `python:3.11`) | 1.67 GB | cột thứ nhất của Docker Desktop |
+| `my-agent:advanced` (multi-stage, `python:3.11-slim`) | 240 MB | chạy bằng user `appuser`, không phải root |
+
+Chênh lệch: (1.67 GB ≈ 1710 MB) giảm xuống 240 MB, tức giảm khoảng 86%. Multi-stage giảm dung lượng vì stage runtime chỉ copy `site-packages` đã cài, không mang theo build tools; thêm vào đó base `-slim` nhỏ hơn nhiều so với bản đầy đủ.
+
+Gọi container production (`docker run -d -p 8000:8000 my-agent:advanced`), bản này nhận JSON:
+
+```
+$ curl -s localhost:8000/health
+{"status":"ok","uptime_seconds":12.4,"version":"2.0.0","timestamp":"2026-11-25T09:45:35.682583"}
+$ curl -s -X POST localhost:8000/ask -H "Content-Type: application/json" -d '{"question":"Hello"}'
+{"answer":"Đây là câu trả lời từ AI agent (mock). Trong production, đây sẽ là response từ OpenAI/Anthropic."}
+```
+
+Lần đầu mình gọi `/ask?question=Hello` (query string) thì server trả 500 vì code đọc JSON body (`request.json()`); đổi sang gửi JSON thì chạy. Mình chưa chạy container của image develop, nên không có output gọi bản develop.
+
+**Chỉnh sửa vì môi trường:** mạng của mình chặn `apt-get` trong lúc build (lỗi `401 VG-AuthenticationRequired`). `requirements.txt` của bản production chỉ có `fastapi` và `uvicorn` (không cần biên dịch), nên mình xóa bước `RUN apt-get ... gcc libpq-dev` khỏi `02-docker/production/Dockerfile`, rồi build lại thành công.
+
+### Exercise 2.4: Stack Docker Compose
+
+Sơ đồ:
+
+```
+Client --> Nginx (cổng 80/443) --> agent (FastAPI, cổng 8000 nội bộ)
+                                      |--> redis  (cache, rate limit)
+                                      |--> qdrant (vector DB)
+```
+
+Cả 4 service chung network `internal`; chỉ Nginx mở cổng ra ngoài. Agent chờ redis và qdrant `healthy` mới khởi động (`depends_on` + `condition: service_healthy`).
+
+Kết quả thật khi gọi qua Nginx:
+
+```
+$ curl -s localhost/health
+{"status":"ok","uptime_seconds":92.6,"version":"2.0.0","timestamp":"2026-11-25T09:52:31.676074"}
+$ curl -s -X POST localhost/ask -H "Content-Type: application/json" -d '{"question":"Hello"}'
+{"answer":"Đây là câu trả lời từ AI agent (mock). Trong production, đây sẽ là response từ OpenAI/Anthropic."}
+$ docker compose ps
+production-agent-1    Up (healthy)   8000/tcp
+production-nginx-1    Up             0.0.0.0:80->80/tcp, 0.0.0.0:443->443/tcp
+production-qdrant-1   Up (healthy)   6333-6334/tcp
+production-redis-1    Up (healthy)   6379/tcp
+```
+
+**Chỉnh sửa vì môi trường:** Docker Desktop không mount được `nginx/nginx.conf` từ Debian-Lab (lỗi `not a directory`, cả khi chép sang `/mnt/d`). Mình chạy stack trong bản sao `/mnt/d/lab14`, thêm `Dockerfile.nginx` (`FROM nginx:alpine` + `COPY nginx/nginx.conf`) và đổi service nginx sang `build`, bỏ dòng mount. Chỉ sửa trong bản sao, repo gốc không đổi phần này.
 
 ## Part 3: Cloud Deployment
 
