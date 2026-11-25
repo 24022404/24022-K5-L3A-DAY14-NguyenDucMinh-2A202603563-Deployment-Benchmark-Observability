@@ -145,7 +145,64 @@ production-redis-1    Up (healthy)   6379/tcp
 
 ## Part 4: API Security
 
-(chưa làm)
+### Exercise 4.1: API key (`04-api-gateway/develop/app.py`)
+
+- **Key được kiểm tra ở đâu:** hàm `verify_api_key` (dòng 39), dùng làm dependency của `/ask` (`Depends(verify_api_key)`). Key đúng đọc từ biến môi trường `AGENT_API_KEY` (dòng 35).
+- **Sai key:** không có header trả 401, có header nhưng sai trả 403.
+- **Rotate key:** đổi giá trị `AGENT_API_KEY` trên platform rồi redeploy; key cũ mất hiệu lực ngay vì không còn nằm trong code.
+
+Kết quả thật (chạy `AGENT_API_KEY=my-secret-key python app.py`, bản này nhận JSON body):
+
+```
+$ curl -si -X POST "localhost:8000/ask?question=hello" | head -1
+HTTP/1.1 401 Unauthorized
+$ curl -si -H "X-API-Key: sai" -X POST "localhost:8000/ask?question=hello" | head -1
+HTTP/1.1 403 Forbidden
+$ curl -si -H "X-API-Key: my-secret-key" -X POST localhost:8000/ask -H "Content-Type: application/json" -d '{"question":"hello"}' | sed -n '1p;$p'
+HTTP/1.1 200 OK
+{"question":"hello","answer":"Đây là câu trả lời từ AI agent (mock). Trong production, đây sẽ là response từ OpenAI/Anthropic."}
+```
+
+Ghi chú: lần gọi đầu có key đúng nhưng dùng query string cho 500, vì code đọc JSON body; gửi JSON thì 200.
+
+### Exercise 4.2: JWT (`04-api-gateway/production`)
+
+Lấy token bằng `POST /auth/token` với user `student`/`demo123` (token đã cắt ngắn, che phần sau):
+
+```
+$ curl -s -X POST localhost:8000/auth/token -H "Content-Type: application/json" -d '{"username":"student","password":"demo123"}' | cut -c1-120
+{"access_token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJzdHVkZW50Iiwicm9sZSI6InVzZXIiLCJpYXQiOjE3OTU2MDA3MDgsIm...
+```
+
+Luồng: đăng nhập, nhận token (payload có `sub` = username và `role`), gửi lại trong header `Authorization: Bearer <token>`; `verify_token` giải mã và cấp quyền theo role. Token hết hạn sau 60 phút. Không có token, `/ask` trả 401 (xem bên dưới).
+
+### Exercise 4.3: Rate limiting (`production/rate_limiter.py`)
+
+- **Thuật toán:** sliding window (mỗi user có một `deque` các mốc thời gian, loại bỏ mốc cũ hơn cửa sổ).
+- **Giới hạn:** 10 request mỗi 60 giây cho user thường (`max_requests=10, window_seconds=60`).
+- **Admin:** `app.py` chọn `rate_limiter_admin` thay vì `rate_limiter_user` khi `role == "admin"`, nên admin có hạn mức riêng cao hơn.
+
+Output thật (che token), gọi liên tiếp 13 lần:
+
+```
+$ curl -si localhost:8000/ask -X POST -H "Content-Type: application/json" -d '{"question":"hi"}' | head -1
+HTTP/1.1 401 Unauthorized
+Req  1: 200
+...
+Req 10: 200
+Req 11: 429
+Req 12: 429
+Req 13: 429
+$ curl -si -X POST localhost:8000/ask -H "Authorization: Bearer ***" ... | sed -n '1p;$p'
+HTTP/1.1 429 Too Many Requests
+{"detail":{"error":"Rate limit exceeded","limit":10,"window_seconds":60,"retry_after_seconds":59}}
+```
+
+### Exercise 4.4: Cost guard (`production/cost_guard.py`)
+
+Cách làm: mỗi user có ngân sách `$1/ngày` (`daily_budget_usd=1.0`), toàn hệ thống `$10/ngày` (`global_daily_budget_usd`). Trước khi gọi LLM, `check_budget(user_id)` kiểm tra: nếu tổng chi của hệ thống hoặc của user đã chạm trần thì trả 402. Sau mỗi lần gọi, `record_usage` cộng chi phí tính theo token (giá GPT-4o-mini: `$0.15/1M` input, `$0.60/1M` output), và cảnh báo khi dùng 80% (`warn_at_pct`). Trạng thái lưu trong bộ nhớ của process, nên với nhiều instance cần chuyển sang Redis (như gợi ý trong đề).
+
+Vì sao cần cả hai: rate limit bảo vệ tốc độ (chống spam), cost guard bảo vệ tiền (một user gọi chậm nhưng prompt rất dài vẫn có thể đốt ngân sách). Mình chưa chạy thử trường hợp 402.
 
 ## Part 5: Scaling & Reliability
 
