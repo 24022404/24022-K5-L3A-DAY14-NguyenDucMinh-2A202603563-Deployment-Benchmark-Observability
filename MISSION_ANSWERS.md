@@ -241,7 +241,36 @@ Giải thích: 5 request cùng một `session_id` được Nginx chia cho 3 inst
 
 ## Output `check_production_ready.py`
 
-(chưa làm)
+Chạy đầy đủ (có Docker, trong WSL) tại `06-lab-complete/`: `python3 check_production_ready.py`. Phần "Checklist Deliverable" của output:
+
+```
+  📋 Checklist Deliverable
+     ✅ Dockerfile (multi-stage, < 500 MB)
+     ✅ docker-compose.yml (agent + redis)
+     ✅ .dockerignore
+     ✅ Health check endpoint (GET /health)
+     ✅ Readiness endpoint (GET /ready)
+     ✅ API Key authentication
+     ✅ Rate limiting
+     ✅ Cost guard
+     ✅ Config từ environment variables
+     ✅ Structured logging
+     ✅ Graceful shutdown
+     ✅ Public URL ready (Railway / Render config)
+----------------------------------------------------------------
+  Result: 12/12 tiêu chí đạt · 41/41 checks passed
+  🎉 PASS 12/12 — PRODUCTION READY! Deploy nào!
+```
+
+Một số dòng kiểm tra chạy thật: rate limit trả 429 sau 5 request thành công (`RATE_LIMIT_PER_MINUTE=5`) và vẫn 429 sau khi restart agent (state nằm trong Redis); cost guard trả 402 ở request đầu khi budget gần 0; `docker stop` thoát với exit code 0 trong 1.3s; 12 dòng log đều là JSON hợp lệ.
+
+Cách làm chính trong `06-lab-complete/`:
+- `config.py` đọc cấu hình từ biến môi trường; `.env.example` liệt kê đủ biến, không có secret.
+- `auth.py`: so sánh `X-API-Key` bằng `hmac.compare_digest`, thiếu hoặc sai trả 401.
+- `rate_limiter.py`: sliding window bằng Redis sorted set (mỗi API key), vượt trả 429 kèm `Retry-After`.
+- `cost_guard.py`: cộng dồn chi phí theo ngày trong Redis (`cost:YYYY-MM-DD`), vượt `DAILY_BUDGET_USD` trả 402.
+- `/health` luôn 200; `/ready` trả 503 khi Redis không kết nối được.
+- `Dockerfile` multi-stage (`python:3.11-slim`), user non-root, `HEALTHCHECK`, `exec uvicorn` để là PID 1 nhận SIGTERM, nghe theo `PORT`.
 
 ## AI log
 
